@@ -1,0 +1,62 @@
+# A LAMMPS simulation of Ar diffusing through He at room temperature (298 K)
+
+# Set Lennard-Jones potential parameters and masses
+# epsilon in K (ie epsilon/kB)
+# sigma in pm (1e-12 m)
+# mass in u (atomic mass units)
+
+variable epsilon_he equal 9.8725
+variable sigma_he equal 252.38
+variable mass_he equal 4.00
+variable epsilon_ar equal 111.84
+variable sigma_ar equal 362.3
+variable mass_ar equal 39.95
+
+# Initialisation
+units lj
+dimension 3
+boundary p p p
+atom_style atomic
+
+# System Definition - create bounding box, helium atoms (type 1)
+# and argon atom (type 2)
+# Reduced density corresponds roughly to a density of 16.4kg/m3 in 2D
+lattice sc 0.000397
+# Size of box required for around 1000 particles is 136x136x136
+region total_domain block -68 68 -68 68 -68 68 units box
+region inner_domain block -1 1 -1 1 -1 1 units box
+create_box 2 total_domain
+create_atoms 1 box
+delete_atoms region inner_domain
+create_atoms 2 single 0 0 0
+group helium type 1
+group argon type 2
+mass 1 1.0
+mass 2 $(v_mass_ar/v_mass_he)
+velocity all create $(298/v_epsilon_he) 42 dist gaussian
+
+# Define Lennard-Jones force between all pairs of particles
+pair_style lj/cut 2.5
+pair_coeff 1 1 1 1
+pair_coeff 2 2 $(v_epsilon_ar/v_epsilon_he) $(v_sigma_ar/v_sigma_he)
+
+# Set timestep and integrator
+timestep 0.001
+fix 1 all nve
+
+# Run for 1000 timesteps to randomise system
+run 1000
+
+# Output trajectory every 100 timesteps
+dump wrapped_trajectory all xyz 100 wrapped_trajectory_3d.xyz
+
+# Output unwrapped coordinates every timestep for calculation of MSD
+dump unwrapped_trajectory_brownian argon custom 1 unwrapped_trajectory_3d.xyz xu yu zu
+
+# Monitor temperature
+thermo_style custom step temp density press
+thermo 100000
+
+# Run for a long time and record the trajectory
+reset_timestep 0
+run 100000000
